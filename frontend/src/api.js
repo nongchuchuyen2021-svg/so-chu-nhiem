@@ -1,6 +1,12 @@
 import {
+  getLocalClasses,
+  saveLocalClasses,
+  getCurrentClassId,
+  setCurrentClassId,
   getLocalStudents,
   saveLocalStudents,
+  seedSampleStudents,
+  clearClassStudents,
   getLocalAttendance,
   saveLocalAttendance,
 } from './localData';
@@ -40,6 +46,42 @@ async function fetchJson(endpoint, options = {}) {
 }
 
 export const api = {
+  classes: {
+    list: async () => {
+      try {
+        return await fetchJson('/classes');
+      } catch (err) {
+        return getLocalClasses();
+      }
+    },
+    getCurrent: () => {
+      const list = getLocalClasses();
+      const currentId = getCurrentClassId();
+      return list.find((c) => c.id === currentId) || list[0];
+    },
+    setCurrent: (classId) => {
+      setCurrentClassId(classId);
+    },
+    create: async (data) => {
+      const list = getLocalClasses();
+      const newClass = {
+        id: Date.now(),
+        name: data.name,
+        grade: Number(data.grade) || 10,
+        school_year: data.school_year || '2025-2026',
+      };
+      list.push(newClass);
+      saveLocalClasses(list);
+      return newClass;
+    },
+    update: async (id, data) => {
+      let list = getLocalClasses();
+      list = list.map((c) => (c.id === Number(id) ? { ...c, ...data } : c));
+      saveLocalClasses(list);
+      return list.find((c) => c.id === Number(id));
+    },
+  },
+
   auth: {
     login: async (username, password) => {
       try {
@@ -54,7 +96,7 @@ export const api = {
         const u = username.trim().toLowerCase();
         if (password === 'Demo@12345' || password === '123456') {
           let role = 'gvcn';
-          let fullName = 'Cô Nguyễn Mai Phương (GVCN 10A1)';
+          let fullName = 'Cô Nguyễn Mai Phương (GVCN)';
           if (u === 'canbo') {
             role = 'student';
             fullName = 'Trần Khánh Linh (Lớp phó học tập)';
@@ -62,12 +104,14 @@ export const api = {
             role = 'parent';
             fullName = 'Bác Nam (Phụ huynh em Hoàng Nam)';
           }
+
+          const currentClass = api.classes.getCurrent();
           const mockUser = {
             id: 1,
             username: u,
             full_name: fullName,
             role,
-            class: { id: 1, name: '10A1', school_year: '2025-2026' },
+            class: currentClass,
           };
           localStorage.setItem('scn_cached_user', JSON.stringify(mockUser));
           return mockUser;
@@ -99,17 +143,17 @@ export const api = {
       try {
         return await fetchJson('/dashboard');
       } catch (err) {
-        // Fallback tính toán từ local data
-        const students = getLocalStudents();
+        const currentClass = api.classes.getCurrent();
+        const students = getLocalStudents(currentClass.id);
         const todayStr = new Date().toISOString().split('T')[0];
         const session = new Date().getHours() < 12 ? 'sang' : 'chieu';
-        const attendance = getLocalAttendance(todayStr, session);
+        const attendance = getLocalAttendance(todayStr, session, currentClass.id);
 
         const absentP = attendance.filter((r) => r.status === 'P').length;
         const absentK = attendance.filter((r) => r.status === 'K').length;
         const late = attendance.filter((r) => r.status === 'M').length;
-        const present = students.length - absentP - absentK;
-        const rate = Math.round((present / students.length) * 100);
+        const present = Math.max(0, students.length - absentP - absentK);
+        const rate = students.length > 0 ? Math.round((present / students.length) * 100) : 100;
 
         const absentList = attendance
           .filter((r) => r.status !== 'C')
@@ -134,18 +178,18 @@ export const api = {
             parent_phone: s.parent_phone,
           }));
 
-        // Dữ liệu biểu đồ 7 ngày
         const chartData = [
-          { day: 'T2', co_mat: 39, vang: 1, muon: 0, ty_le: 97.5 },
-          { day: 'T3', co_mat: 38, vang: 2, muon: 1, ty_le: 95.0 },
-          { day: 'T4', co_mat: 40, vang: 0, muon: 0, ty_le: 100 },
-          { day: 'T5', co_mat: 39, vang: 1, muon: 2, ty_le: 97.5 },
-          { day: 'T6', co_mat: 38, vang: 2, muon: 0, ty_le: 95.0 },
-          { day: 'T7', co_mat: 40, vang: 0, muon: 1, ty_le: 100 },
+          { day: 'T2', co_mat: Math.max(0, students.length - 1), vang: 1, muon: 0, ty_le: 97.5 },
+          { day: 'T3', co_mat: Math.max(0, students.length - 2), vang: 2, muon: 1, ty_le: 95.0 },
+          { day: 'T4', co_mat: students.length, vang: 0, muon: 0, ty_le: 100 },
+          { day: 'T5', co_mat: Math.max(0, students.length - 1), vang: 1, muon: 2, ty_le: 97.5 },
+          { day: 'T6', co_mat: Math.max(0, students.length - 2), vang: 2, muon: 0, ty_le: 95.0 },
+          { day: 'T7', co_mat: students.length, vang: 0, muon: 1, ty_le: 100 },
           { day: 'Hôm nay', co_mat: present, vang: absentP + absentK, muon: late, ty_le: rate },
         ];
 
         return {
+          class_name: currentClass.name,
           total_students: students.length,
           today: {
             date: new Date().toLocaleDateString('vi-VN'),
@@ -160,9 +204,9 @@ export const api = {
           },
           flagged_students: flaggedStudents,
           upcoming_events: [
-            { id: 1, title: 'Kiểm tra Giữa Học kỳ 1 môn Toán & Ngữ văn', date: '02/11/2026', note: 'Nhắc học sinh ôn tập trọng tâm chương 1 & 2' },
-            { id: 2, title: 'Họp Phụ huynh đầu năm học 2025-2026', date: '06/11/2026', note: 'Bầu Ban đại diện CMHS, phổ biến nội quy Thông tư 15' },
-            { id: 3, title: 'Hạn nộp tiền Bảo hiểm Y tế học sinh đợt 1', date: '10/11/2026', note: 'Báo cáo danh sách nộp về phòng Tài vụ trường' },
+            { id: 1, title: `Kiểm tra Giữa HK1 Lớp ${currentClass.name}`, date: '02/11/2026', note: 'Ôn tập trọng tâm chương 1 & 2' },
+            { id: 2, title: `Họp Phụ huynh Lớp ${currentClass.name}`, date: '06/11/2026', note: 'Bầu Ban đại diện CMHS, phổ biến Thông tư 15' },
+            { id: 3, title: 'Hạn nộp tiền Bảo hiểm Y tế học sinh', date: '10/11/2026', note: 'Báo cáo danh sách nộp về phòng Tài vụ' },
           ],
           chartData,
         };
@@ -180,13 +224,17 @@ export const api = {
         const qs = query.toString();
         return await fetchJson(`/students${qs ? '?' + qs : ''}`);
       } catch (err) {
-        let list = getLocalStudents();
+        const currentClass = api.classes.getCurrent();
+        let list = getLocalStudents(currentClass.id);
         if (params.q) {
           const q = params.q.toLowerCase();
           list = list.filter((s) => s.full_name.toLowerCase().includes(q) || (s.parent_phone && s.parent_phone.includes(q)));
         }
-        if (params.flagged !== undefined) {
-          list = list.filter((s) => s.is_flagged_risk === params.flagged);
+        if (params.group_name && params.group_name !== 'all') {
+          list = list.filter((s) => s.group_name === params.group_name);
+        }
+        if (params.flagged !== undefined && params.flagged) {
+          list = list.filter((s) => s.is_flagged_risk);
         }
         return list;
       }
@@ -195,7 +243,8 @@ export const api = {
       try {
         return await fetchJson(`/students/${id}`);
       } catch (err) {
-        const list = getLocalStudents();
+        const currentClass = api.classes.getCurrent();
+        const list = getLocalStudents(currentClass.id);
         return list.find((s) => s.id === Number(id)) || null;
       }
     },
@@ -206,14 +255,16 @@ export const api = {
           body: JSON.stringify(data),
         });
       } catch (err) {
-        const list = getLocalStudents();
+        const currentClass = api.classes.getCurrent();
+        const list = getLocalStudents(currentClass.id);
         const newStudent = {
           ...data,
           id: Date.now(),
-          group_name: data.group_id ? `Tổ ${data.group_id}` : 'Tổ 1',
+          class_id: currentClass.id,
+          group_name: data.group_id ? `Tổ ${data.group_id}` : (data.group_name || 'Tổ 1'),
         };
         list.push(newStudent);
-        saveLocalStudents(list);
+        saveLocalStudents(list, currentClass.id);
         return newStudent;
       }
     },
@@ -224,9 +275,10 @@ export const api = {
           body: JSON.stringify(data),
         });
       } catch (err) {
-        let list = getLocalStudents();
+        const currentClass = api.classes.getCurrent();
+        let list = getLocalStudents(currentClass.id);
         list = list.map((s) => (s.id === Number(id) ? { ...s, ...data } : s));
-        saveLocalStudents(list);
+        saveLocalStudents(list, currentClass.id);
         return list.find((s) => s.id === Number(id));
       }
     },
@@ -234,11 +286,47 @@ export const api = {
       try {
         return await fetchJson(`/students/${id}`, { method: 'DELETE' });
       } catch (err) {
-        let list = getLocalStudents();
+        const currentClass = api.classes.getCurrent();
+        let list = getLocalStudents(currentClass.id);
         list = list.filter((s) => s.id !== Number(id));
-        saveLocalStudents(list);
+        saveLocalStudents(list, currentClass.id);
         return { ok: true };
       }
+    },
+    seedDemo: async () => {
+      const currentClass = api.classes.getCurrent();
+      return seedSampleStudents(currentClass.id);
+    },
+    clearAll: async () => {
+      const currentClass = api.classes.getCurrent();
+      clearClassStudents(currentClass.id);
+      return [];
+    },
+    importList: async (importedStudents) => {
+      const currentClass = api.classes.getCurrent();
+      let list = getLocalStudents(currentClass.id);
+      const startId = Date.now();
+      const formatted = importedStudents.map((s, idx) => ({
+        id: startId + idx,
+        class_id: currentClass.id,
+        full_name: s.full_name || s['Họ và tên'] || 'Học sinh',
+        gender: s.gender || s['Giới tính'] || 'Nam',
+        dob: s.dob || s['Ngày sinh'] || '',
+        role_in_class: s.role_in_class || s['Chức vụ'] || 'Thành viên',
+        group_name: s.group_name || s['Tổ'] || `Tổ ${(idx % 4) + 1}`,
+        parent_name: s.parent_name || s['Phụ huynh'] || '',
+        parent_phone: s.parent_phone || s['SĐT Phụ huynh'] || '',
+        parent_job: s.parent_job || s['Nghề nghiệp'] || '',
+        address: s.address || s['Địa chỉ'] || '',
+        family_background: s.family_background || s['Hoàn cảnh'] || '',
+        private_notes: s.private_notes || s['Ghi chú'] || '',
+        is_flagged_risk: Boolean(s.is_flagged_risk),
+        risk_reason: s.risk_reason || '',
+      }));
+
+      list = [...list, ...formatted];
+      saveLocalStudents(list, currentClass.id);
+      return list;
     },
     groups: async () => {
       try {
@@ -262,7 +350,8 @@ export const api = {
       try {
         return await fetchJson(`/attendance?date=${dateStr}&session=${session}`);
       } catch (err) {
-        return getLocalAttendance(dateStr, session);
+        const currentClass = api.classes.getCurrent();
+        return getLocalAttendance(dateStr, session, currentClass.id);
       }
     },
     save: async (dateStr, session, records) => {
@@ -272,21 +361,32 @@ export const api = {
           body: JSON.stringify({ date: dateStr, session, records }),
         });
       } catch (err) {
-        return saveLocalAttendance(dateStr, session, records);
+        const currentClass = api.classes.getCurrent();
+        return saveLocalAttendance(dateStr, session, records, currentClass.id);
       }
     },
     summary: async (days = 30) => {
       try {
         return await fetchJson(`/attendance/summary?days=${days}`);
       } catch (err) {
+        const currentClass = api.classes.getCurrent();
+        const students = getLocalStudents(currentClass.id);
+        const atRisk = students
+          .filter((s) => s.is_flagged_risk)
+          .map((s) => ({
+            student_id: s.id,
+            name: s.full_name,
+            total_absent: 3,
+            p: 2,
+            k: 1,
+            m: 1,
+          }));
+
         return {
           period_days: days,
-          total_students: 40,
-          at_risk_count: 2,
-          at_risk_students: [
-            { student_id: 11, name: 'Nguyễn Đức Cường', total_absent: 3, p: 1, k: 0, m: 2 },
-            { student_id: 7, name: 'Đặng Hữu Phúc', total_absent: 3, p: 3, k: 0, m: 0 },
-          ],
+          total_students: students.length,
+          at_risk_count: atRisk.length,
+          at_risk_students: atRisk,
         };
       }
     },

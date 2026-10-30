@@ -59,7 +59,7 @@ const COMMON_REASONS = [
   'Không rõ lý do (Chưa liên lạc được)',
 ];
 
-export default function AttendanceView({ user }) {
+export default function AttendanceView({ user, currentClass }) {
   const getTodayStr = () => new Date().toISOString().split('T')[0];
 
   const [targetDate, setTargetDate] = useState(getTodayStr());
@@ -73,11 +73,11 @@ export default function AttendanceView({ user }) {
 
   useEffect(() => {
     loadAttendance();
-  }, [targetDate, session]);
+  }, [targetDate, session, currentClass?.id]);
 
   useEffect(() => {
     loadSummary();
-  }, []);
+  }, [currentClass?.id]);
 
   const showToast = (msg) => {
     setToastMessage(msg);

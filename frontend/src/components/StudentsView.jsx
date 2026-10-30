@@ -14,12 +14,14 @@ import {
   MoreVertical,
   Calendar,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 import { api } from '../api';
 import StudentDetailModal from './StudentDetailModal';
 import StudentFormModal from './StudentFormModal';
+import ImportStudentsModal from './ImportStudentsModal';
 
-export default function StudentsView({ user, selectedStudentId, onClearSelectedStudent }) {
+export default function StudentsView({ user, currentClass, selectedStudentId, onClearSelectedStudent }) {
   const isGVCN = user?.role === 'gvcn';
 
   const [students, setStudents] = useState([]);
@@ -32,11 +34,12 @@ export default function StudentsView({ user, selectedStudentId, onClearSelectedS
 
   const [detailStudent, setDetailStudent] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   useEffect(() => {
     loadStudents();
     loadGroups();
-  }, []);
+  }, [currentClass?.id]);
 
   // Nếu có selectedStudentId truyền từ Dashboard vào thì mở detail modal
   useEffect(() => {
@@ -129,9 +132,18 @@ export default function StudentsView({ user, selectedStudentId, onClearSelectedS
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isGVCN && (
               <>
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 transition active:scale-95 shadow-sm"
+                  title="Nạp dữ liệu học sinh từ Excel hoặc dữ liệu mẫu"
+                >
+                  <Upload className="w-4 h-4 text-emerald-600" />
+                  <span>Nạp Dữ Liệu Học Sinh</span>
+                </button>
+
                 <button
                   onClick={handleExportExcel}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition"
@@ -143,7 +155,7 @@ export default function StudentsView({ user, selectedStudentId, onClearSelectedS
 
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 transition active:scale-95"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 transition active:scale-95"
                 >
                   <UserPlus className="w-4 h-4" />
                   <span>Thêm Học Sinh</span>
@@ -390,6 +402,17 @@ export default function StudentsView({ user, selectedStudentId, onClearSelectedS
           groups={groups}
           onClose={() => setShowAddModal(false)}
           onCreated={handleStudentCreated}
+        />
+      )}
+
+      {/* Modal Nạp Dữ Liệu Học Sinh (Excel hoặc Mẫu 40 HS) */}
+      {showImportModal && (
+        <ImportStudentsModal
+          currentClassName={currentClass?.name || '10A1'}
+          onClose={() => setShowImportModal(false)}
+          onImportSuccess={(updatedList) => {
+            setStudents(updatedList);
+          }}
         />
       )}
     </div>

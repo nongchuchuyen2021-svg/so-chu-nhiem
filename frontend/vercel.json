@@ -1,0 +1,7 @@
+{
+  "name": "so-chu-nhiem-dien-tu",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+

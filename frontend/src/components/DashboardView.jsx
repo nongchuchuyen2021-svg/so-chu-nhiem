@@ -23,14 +23,14 @@ import {
 } from 'recharts';
 import { api } from '../api';
 
-export default function DashboardView({ onNavigateTab, onSelectStudent }) {
+export default function DashboardView({ onNavigateTab, onSelectStudent, currentClass }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     loadDashboard();
-  }, []);
+  }, [currentClass?.id]);
 
   const loadDashboard = async () => {
     try {

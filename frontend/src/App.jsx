@@ -20,6 +20,7 @@ import DashboardView from './components/DashboardView';
 import AttendanceView from './components/AttendanceView';
 import StudentsView from './components/StudentsView';
 import LoginView from './components/LoginView';
+import ClassManageModal from './components/ClassManageModal';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -29,6 +30,11 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem('scn_dark_mode') === 'true';
   });
+
+  // Quản lý lớp học
+  const [classes, setClasses] = useState([]);
+  const [currentClass, setCurrentClass] = useState(null);
+  const [showClassModal, setShowClassModal] = useState(false);
 
   // Đồng bộ class dark lên html element
   useEffect(() => {
@@ -40,10 +46,37 @@ export default function App() {
     localStorage.setItem('scn_dark_mode', darkMode);
   }, [darkMode]);
 
-  // Kiểm tra phiên đăng nhập khi tải ứng dụng
+  // Khởi động
   useEffect(() => {
     checkCurrentUser();
+    loadClasses();
   }, []);
+
+  const loadClasses = async () => {
+    try {
+      const list = await api.classes.list();
+      setClasses(list);
+      const curr = api.classes.getCurrent();
+      setCurrentClass(curr);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSelectClass = (classId) => {
+    api.classes.setCurrent(classId);
+    const selected = classes.find((c) => c.id === classId);
+    if (selected) {
+      setCurrentClass(selected);
+      // Cập nhật thông tin lớp trong user state nếu có
+      if (user) {
+        setUser((prev) => ({
+          ...prev,
+          class: selected,
+        }));
+      }
+    }
+  };
 
   const checkCurrentUser = async () => {
     try {
@@ -66,7 +99,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-slate-100 space-y-3">
         <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sm font-medium text-slate-400">Đang khởi động Sổ Chủ Nhiệm Điện Tử...</p>
+        <p className="text-sm font-medium text-slate-400">Đang khởi động so-chu-nhiem...</p>
       </div>
     );
   }
@@ -84,6 +117,9 @@ export default function App() {
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         onLogout={handleLogout}
+        currentClass={currentClass}
+        classes={classes}
+        onOpenClassModal={() => setShowClassModal(true)}
       />
 
       {/* Thân ứng dụng: Sidebar + Nội dung */}
@@ -95,6 +131,7 @@ export default function App() {
         <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0">
           {activeTab === 'dashboard' && (
             <DashboardView
+              currentClass={currentClass}
               onNavigateTab={(tab) => setActiveTab(tab)}
               onSelectStudent={(stId) => {
                 setSelectedStudentId(stId);
@@ -103,11 +140,14 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'attendance' && <AttendanceView user={user} />}
+          {activeTab === 'attendance' && (
+            <AttendanceView user={user} currentClass={currentClass} />
+          )}
 
           {activeTab === 'students' && (
             <StudentsView
               user={user}
+              currentClass={currentClass}
               selectedStudentId={selectedStudentId}
               onClearSelectedStudent={() => setSelectedStudentId(null)}
             />
@@ -133,7 +173,8 @@ export default function App() {
                   {activeTab === 'reports' && 'Module Báo cáo tự động & Xuất PDF/Excel (Giai đoạn 4)'}
                 </h2>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Hiện tại hệ thống đã hoàn thành trọn vẹn <strong>Giai đoạn 1 (a)</strong> gồm: Hồ sơ 40 học sinh, Điểm danh nhanh 30 giây, Dashboard tổng quan 1 phút, chuẩn Thông tư 15/2026/TT-BGDĐT.
+                  Hiện tại hệ thống đã hoàn thành trọn vẹn <strong>Giai đoạn 1 (a)</strong> cho Lớp{' '}
+                  <strong>{currentClass?.name || '10A1'}</strong>.
                 </p>
               </div>
               <div className="pt-2">
@@ -148,7 +189,19 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Modal Chọn & Quản lý Lớp */}
+      {showClassModal && (
+        <ClassManageModal
+          classes={classes}
+          currentClassId={currentClass?.id}
+          onSelectClass={handleSelectClass}
+          onClassesUpdated={(updatedList) => {
+            setClasses(updatedList);
+          }}
+          onClose={() => setShowClassModal(false)}
+        />
+      )}
     </div>
   );
 }
-
