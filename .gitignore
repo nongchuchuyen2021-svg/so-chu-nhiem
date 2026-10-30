@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+backend/.venv/
+.venv/
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Frontend / Node
+frontend/node_modules/
+node_modules/
+frontend/dist/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Backups
+.env
+.env.local
+data/backups/
+.DS_Store
+Thumbs.db
