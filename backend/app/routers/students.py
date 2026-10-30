@@ -1,19 +1,67 @@
 from io import BytesIO
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, delete, update
 from sqlalchemy.orm import Session
 import openpyxl
 
 from ..core.deps import current_user, require_gvcn, get_scoped
 from ..db.session import get_db
-from ..models import Student, Group, User, AuditLog
-from ..schemas import StudentCreate, StudentUpdate, StudentOut
+from ..models import (Student, Group, User, AuditLog, Attendance, ConductRecord, StudentNote,
+                      AccessCode)
+from ..schemas import StudentCreate, StudentUpdate, StudentOut, ImportStudentsIn
 
 router = APIRouter(prefix="/api/students", tags=["students"])
+
+
+def _delete_students(db: Session, student_ids: list[int]) -> None:
+    """Xóa học sinh cùng mọi bản ghi tham chiếu (khóa ngoại bật nên không thể xóa riêng lẻ)."""
+    if not student_ids:
+        return
+    db.execute(delete(Attendance).where(Attendance.student_id.in_(student_ids)))
+    db.execute(delete(ConductRecord).where(ConductRecord.student_id.in_(student_ids)))
+    db.execute(delete(StudentNote).where(StudentNote.student_id.in_(student_ids)))
+    db.execute(delete(AccessCode).where(AccessCode.student_id.in_(student_ids)))
+    db.execute(update(User).where(User.student_id.in_(student_ids)).values(student_id=None))
+    db.execute(delete(Student).where(Student.id.in_(student_ids)))
+
+
+def _s(v, limit: int = 255) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, float) and v.is_integer():
+        v = int(v)
+    return str(v).strip()[:limit]
+
+
+def _parse_dob(v):
+    """Nhận 'YYYY-MM-DD', 'DD/MM/YYYY' hoặc số serial của Excel; không hiểu thì để trống."""
+    if v is None or v == "":
+        return None
+    if isinstance(v, (int, float)) and 1 < v < 80000:
+        return date(1899, 12, 30) + timedelta(days=int(v))
+    s = str(v).strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y"):
+        try:
+            return datetime.strptime(s[:10], fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _norm_group(v) -> str:
+    s = _s(v, 50)
+    if not s:
+        return "Tổ 1"
+    return f"Tổ {s}" if s.isdigit() else s
+
+
+def _norm_phone(v) -> str:
+    digits = "".join(ch for ch in _s(v, 30) if ch.isdigit())
+    return "0" + digits if len(digits) == 9 else digits
 
 
 @router.get("/groups")
@@ -218,10 +266,63 @@ def update_student(student_id: int, data: StudentUpdate, user: User = Depends(re
 @router.delete("/{student_id}")
 def delete_student(student_id: int, user: User = Depends(require_gvcn), db: Session = Depends(get_db)):
     student = get_scoped(db, Student, student_id, user)
-    db.delete(student)
+    _delete_students(db, [student.id])
     db.add(AuditLog(user_id=user.id, action="delete_student", entity="student", entity_id=student_id))
     db.commit()
     return {"ok": True, "message": "Đã xóa học sinh thành công"}
+
+
+@router.post("/import")
+def import_students(data: ImportStudentsIn, user: User = Depends(require_gvcn), db: Session = Depends(get_db)):
+    """Nạp danh sách học sinh vào lớp hiện tại trong 1 giao dịch (lỗi thì không đổi gì).
+    replace=True: thay toàn bộ danh sách cũ (kèm điểm danh/nề nếp của các em đó)."""
+    rows = []
+    for item in data.students:
+        name = _s(item.full_name, 100)
+        if name:
+            rows.append((name, item))
+    if not rows:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Không có học sinh hợp lệ (thiếu họ và tên)")
+
+    removed = 0
+    if data.replace:
+        old_ids = list(db.scalars(select(Student.id).where(Student.class_id == user.class_id)).all())
+        removed = len(old_ids)
+        _delete_students(db, old_ids)
+
+    groups = {g.name: g.id for g in db.scalars(select(Group).where(Group.class_id == user.class_id)).all()}
+    existing = {(s.full_name.strip().lower(), s.dob)
+                for s in db.scalars(select(Student).where(Student.class_id == user.class_id)).all()}
+
+    added, skipped = 0, 0
+    for name, item in rows:
+        dob = _parse_dob(item.dob)
+        key = (name.lower(), dob)
+        if key in existing:
+            skipped += 1
+            continue
+        existing.add(key)
+        gname = _norm_group(item.group_name)
+        if gname not in groups:
+            g = Group(class_id=user.class_id, name=gname)
+            db.add(g)
+            db.flush()
+            groups[gname] = g.id
+        gender = "Nữ" if _s(item.gender, 10).lower() in ("nữ", "nu", "nữ ", "female", "f") else "Nam"
+        db.add(Student(
+            class_id=user.class_id, group_id=groups[gname], full_name=name, dob=dob, gender=gender,
+            role_in_class=_s(item.role_in_class, 50) or "Thành viên",
+            parent_name=_s(item.parent_name, 100), parent_phone=_norm_phone(item.parent_phone),
+            parent_job=_s(item.parent_job, 100), address=_s(item.address),
+            family_background=_s(item.family_background, 2000), interests=_s(item.interests, 2000),
+            private_notes=_s(item.private_notes, 2000),
+            is_flagged_risk=bool(item.is_flagged_risk), risk_reason=_s(item.risk_reason),
+        ))
+        added += 1
+
+    db.add(AuditLog(user_id=user.id, action="import_students", entity="student", entity_id=None))
+    db.commit()
+    return {"ok": True, "added": added, "skipped_duplicates": skipped, "removed": removed}
 
 
 @router.get("/export/excel")

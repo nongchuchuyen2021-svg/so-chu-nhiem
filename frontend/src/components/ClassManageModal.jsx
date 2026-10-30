@@ -24,10 +24,13 @@ export default function ClassManageModal({
   // Lưu sửa tên lớp
   const handleSaveEdit = async (id) => {
     if (!editName.trim()) return;
-    await api.classes.update(id, { name: editName.trim() });
-    setEditingId(null);
-    const updated = await api.classes.list();
-    onClassesUpdated(updated);
+    try {
+      await api.classes.update(id, { name: editName.trim() });
+      setEditingId(null);
+      onClassesUpdated(await api.classes.list());
+    } catch (err) {
+      alert(`Không đổi được tên lớp: ${err.message}`);
+    }
   };
 
   // Thêm lớp mới
@@ -35,16 +38,18 @@ export default function ClassManageModal({
     e.preventDefault();
     if (!newClassName.trim()) return;
 
-    const created = await api.classes.create({
-      name: newClassName.trim(),
-      grade: newGrade,
-      school_year: newSchoolYear,
-    });
-
-    setNewClassName('');
-    const updated = await api.classes.list();
-    onClassesUpdated(updated);
-    onSelectClass(created.id);
+    try {
+      const created = await api.classes.create({
+        name: newClassName.trim(),
+        grade: newGrade,
+        school_year: newSchoolYear.trim(),
+      });
+      setNewClassName('');
+      onClassesUpdated(await api.classes.list());
+      await onSelectClass(created.id);
+    } catch (err) {
+      alert(`Không tạo được lớp: ${err.message}`);
+    }
   };
 
   return (
@@ -242,3 +247,4 @@ export default function ClassManageModal({
     </div>
   );
 }
+

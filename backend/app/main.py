@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .core.config import ROOT
 from .db.session import init_db
-from .routers import auth, backup, students, attendance, dashboard
+from .routers import auth, backup, students, attendance, dashboard, classes
 
 
 @asynccontextmanager
@@ -22,6 +22,7 @@ app.include_router(backup.router)
 app.include_router(students.router)
 app.include_router(attendance.router)
 app.include_router(dashboard.router)
+app.include_router(classes.router)
 
 
 @app.get("/api/health")

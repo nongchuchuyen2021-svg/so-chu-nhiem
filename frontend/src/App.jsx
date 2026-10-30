@@ -46,35 +46,55 @@ export default function App() {
     localStorage.setItem('scn_dark_mode', darkMode);
   }, [darkMode]);
 
+  // 'server' | 'demo' (xem api.js). Ở 'demo' dữ liệu chỉ nằm trong trình duyệt nên phải báo rõ.
+  const [mode, setMode] = useState(null);
+
   // Khởi động
   useEffect(() => {
+    api.mode().then(setMode);
     checkCurrentUser();
-    loadClasses();
   }, []);
 
-  const loadClasses = async () => {
+  // Máy chủ báo hết phiên giữa chừng -> về màn hình đăng nhập (không lưu giả)
+  useEffect(() => {
+    const onUnauthorized = () => setUser(null);
+    window.addEventListener('scn:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('scn:unauthorized', onUnauthorized);
+  }, []);
+
+  // Tải danh sách lớp sau khi đăng nhập. Chỉ GVCN được đổi lớp; vai trò khác chỉ thấy lớp của mình.
+  useEffect(() => {
+    if (user) loadClasses(user);
+  }, [user?.id, user?.role]);
+
+  const loadClasses = async (u) => {
+    if (u.role !== 'gvcn') {
+      setClasses(u.class ? [u.class] : []);
+      setCurrentClass(u.class || null);
+      return;
+    }
     try {
       const list = await api.classes.list();
       setClasses(list);
-      const curr = api.classes.getCurrent();
-      setCurrentClass(curr);
+      setCurrentClass(list.find((c) => c.is_current) || list[0] || null);
     } catch (e) {
-      console.error(e);
+      alert(`Không tải được danh sách lớp: ${e.message}`);
     }
   };
 
-  const handleSelectClass = (classId) => {
-    api.classes.setCurrent(classId);
-    const selected = classes.find((c) => c.id === classId);
-    if (selected) {
-      setCurrentClass(selected);
-      // Cập nhật thông tin lớp trong user state nếu có
-      if (user) {
-        setUser((prev) => ({
-          ...prev,
-          class: selected,
-        }));
+  // Chỉ đổi giao diện sau khi nơi lưu (máy chủ/trình duyệt) đã xác nhận đổi lớp
+  const handleSelectClass = async (classId) => {
+    try {
+      await api.classes.setCurrent(classId);
+      const list = await api.classes.list();
+      const selected = list.find((c) => c.id === classId);
+      setClasses(list);
+      if (selected) {
+        setCurrentClass(selected);
+        setUser((prev) => ({ ...prev, class: selected }));
       }
+    } catch (e) {
+      alert(`Không đổi được lớp: ${e.message}`);
     }
   };
 
@@ -106,7 +126,7 @@ export default function App() {
 
   // Nếu chưa đăng nhập: hiện màn hình Login
   if (!user) {
-    return <LoginView onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
+    return <LoginView demo={mode === 'demo'} onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
   }
 
   return (
@@ -119,16 +139,23 @@ export default function App() {
         onLogout={handleLogout}
         currentClass={currentClass}
         classes={classes}
-        onOpenClassModal={() => setShowClassModal(true)}
+        onOpenClassModal={user.role === 'gvcn' ? () => setShowClassModal(true) : undefined}
       />
+
+      {mode === 'demo' && (
+        <div className="bg-amber-100 dark:bg-amber-950 border-b border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-semibold px-4 py-2 text-center">
+          ⚠️ Chế độ dùng thử: dữ liệu chỉ lưu trong trình duyệt này, không đồng bộ giữa các thiết bị và sẽ mất khi xóa
+          dữ liệu trình duyệt. Không nhập thông tin thật của học sinh.
+        </div>
+      )}
 
       {/* Thân ứng dụng: Sidebar + Nội dung */}
       <div className="flex-1 max-w-7xl w-full mx-auto flex">
         {/* Sidebar phân hệ */}
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} />
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} mode={mode} />
 
-        {/* Nội dung chính của màn hình */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0">
+        {/* Nội dung chính của màn hình. key=lớp: đổi lớp thì mọi màn hình tải lại dữ liệu từ đầu */}
+        <main key={currentClass?.id ?? 'none'} className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0">
           {activeTab === 'dashboard' && (
             <DashboardView
               currentClass={currentClass}
@@ -198,6 +225,7 @@ export default function App() {
           onSelectClass={handleSelectClass}
           onClassesUpdated={(updatedList) => {
             setClasses(updatedList);
+            setCurrentClass((prev) => updatedList.find((c) => c.id === prev?.id) || prev);
           }}
           onClose={() => setShowClassModal(false)}
         />

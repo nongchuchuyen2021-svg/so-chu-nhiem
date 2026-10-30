@@ -1,9 +1,18 @@
 from datetime import date
-from typing import Optional, List
-from pydantic import BaseModel, ConfigDict
+from typing import Any, Optional, List
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _empty_to_none(v):
+    return None if isinstance(v, str) and not v.strip() else v
 
 
 class StudentBase(BaseModel):
+    @field_validator("dob", mode="before", check_fields=False)
+    @classmethod
+    def _dob_blank(cls, v):
+        return _empty_to_none(v)
+
     full_name: str
     dob: Optional[date] = None
     gender: str = "Nam"
@@ -28,6 +37,11 @@ class StudentCreate(StudentBase):
 
 
 class StudentUpdate(BaseModel):
+    @field_validator("dob", mode="before")
+    @classmethod
+    def _dob_blank(cls, v):
+        return _empty_to_none(v)
+
     full_name: Optional[str] = None
     dob: Optional[date] = None
     gender: Optional[str] = None
@@ -52,6 +66,40 @@ class StudentOut(StudentBase):
     class_id: int
     group_name: Optional[str] = ""
     model_config = ConfigDict(from_attributes=True)
+
+
+class ImportStudentItem(BaseModel):
+    """1 dòng học sinh nạp hàng loạt (từ Excel). Giá trị có thể là số/chuỗi nên để Any, chuẩn hóa ở router."""
+    model_config = ConfigDict(extra="ignore")
+    full_name: Any = ""
+    gender: Any = "Nam"
+    dob: Any = None
+    group_name: Any = None
+    role_in_class: Any = None
+    parent_name: Any = None
+    parent_phone: Any = None
+    parent_job: Any = None
+    address: Any = None
+    family_background: Any = None
+    interests: Any = None
+    private_notes: Any = None
+    is_flagged_risk: Any = False
+    risk_reason: Any = None
+
+
+class ImportStudentsIn(BaseModel):
+    students: List[ImportStudentItem] = Field(max_length=300)
+    replace: bool = False
+
+
+class ClassCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=20)
+    grade: int = Field(default=10, ge=10, le=12)
+    school_year: str = Field(default="2025-2026", max_length=20)
+
+
+class ClassUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=20)
 
 
 class AttendanceItem(BaseModel):

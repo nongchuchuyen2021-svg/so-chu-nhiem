@@ -11,7 +11,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 
-export default function Sidebar({ activeTab, setActiveTab, user }) {
+export default function Sidebar({ activeTab, setActiveTab, user, mode }) {
   const isGVCN = user?.role === 'gvcn';
 
   const menuItems = [
@@ -82,10 +82,12 @@ export default function Sidebar({ activeTab, setActiveTab, user }) {
         <div className="pt-4 mt-auto border-t border-slate-100 dark:border-slate-800">
           <div className="bg-emerald-50 dark:bg-emerald-950/40 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/50">
             <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-              ⚡ Chế độ Local-First
+              {mode === 'demo' ? '🧪 Chế độ dùng thử' : '🔒 Dữ liệu trên máy chủ'}
             </p>
             <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 mt-1">
-              Dữ liệu được lưu trong máy, hoạt động ổn định không sợ rớt mạng.
+              {mode === 'demo'
+                ? 'Dữ liệu chỉ lưu trong trình duyệt này, có thể mất khi xóa dữ liệu trình duyệt.'
+                : 'Mọi thay đổi được lưu vào cơ sở dữ liệu; nếu lưu lỗi hệ thống sẽ báo ngay.'}
             </p>
           </div>
         </div>

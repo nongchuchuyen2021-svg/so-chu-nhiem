@@ -64,7 +64,15 @@ def save_attendance(data: BulkAttendanceIn, user: User = Depends(current_user), 
     # Cho phép cả GVCN và Cán bộ lớp (role="student") điểm danh
     if user.role not in ("gvcn", "student"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Bạn không có quyền điểm danh")
-        
+
+    ids = [item.student_id for item in data.records]
+    valid_ids = set(db.scalars(select(Student.id).where(Student.class_id == user.class_id,
+                                                       Student.id.in_(ids))).all())
+    if any(i not in valid_ids for i in ids):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Danh sách có học sinh không thuộc lớp này")
+    if any(item.status not in ("C", "P", "K", "M") for item in data.records):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Trạng thái điểm danh không hợp lệ")
+
     for item in data.records:
         rec = db.scalar(
             select(Attendance).where(

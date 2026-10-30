@@ -412,6 +412,7 @@ export default function StudentsView({ user, currentClass, selectedStudentId, on
           onClose={() => setShowImportModal(false)}
           onImportSuccess={(updatedList) => {
             setStudents(updatedList);
+            loadGroups();
           }}
         />
       )}

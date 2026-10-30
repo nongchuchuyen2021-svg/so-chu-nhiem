@@ -65,8 +65,9 @@ export default function Navbar({
           <div className="flex items-center">
             <button
               onClick={onOpenClassModal}
-              title="Bấm để chọn lớp hoặc thêm/sửa tên lớp"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/80 transition shadow-sm active:scale-95 group"
+              disabled={!onOpenClassModal}
+              title={onOpenClassModal ? 'Bấm để chọn lớp hoặc thêm/sửa tên lớp' : 'Lớp của bạn'}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800/80 transition shadow-sm active:scale-95 group disabled:cursor-default disabled:hover:bg-emerald-50 disabled:active:scale-100"
             >
               <School className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <div className="text-left">

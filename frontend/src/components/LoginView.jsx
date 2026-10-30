@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 
-export default function LoginView({ onLoginSuccess }) {
+export default function LoginView({ onLoginSuccess, demo }) {
   const [username, setUsername] = useState('gvcn');
   const [password, setPassword] = useState('Demo@12345');
   const [loading, setLoading] = useState(false);
@@ -70,6 +70,11 @@ export default function LoginView({ onLoginSuccess }) {
 
         {/* Khung Đăng Nhập */}
         <div className="bg-slate-800/80 backdrop-blur-md p-6 sm:p-8 rounded-3xl border border-slate-700/80 shadow-2xl space-y-5">
+          {demo && (
+            <div className="p-3 rounded-xl bg-amber-950/50 border border-amber-800 text-amber-200 text-[11px] leading-relaxed">
+              ⚠️ Bản dùng thử: chưa kết nối máy chủ, dữ liệu chỉ lưu trong trình duyệt này. Không nhập thông tin thật của học sinh.
+            </div>
+          )}
           {error && (
             <div className="p-3.5 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />

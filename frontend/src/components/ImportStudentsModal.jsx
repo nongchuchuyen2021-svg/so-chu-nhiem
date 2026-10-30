@@ -77,6 +77,7 @@ export default function ImportStudentsModal({ onClose, onImportSuccess, currentC
 
   // Nạp 40 học sinh mẫu chuẩn THPT
   const handleSeedDemo = async () => {
+    if (!confirm(`Thay TOÀN BỘ danh sách lớp ${currentClassName} bằng 40 học sinh mẫu? Dữ liệu và điểm danh hiện có của lớp sẽ bị xóa.`)) return;
     try {
       setLoading(true);
       const res = await api.students.seedDemo();
@@ -156,13 +157,11 @@ export default function ImportStudentsModal({ onClose, onImportSuccess, currentC
   // Xác nhận nạp danh sách vào lớp
   const handleConfirmImport = async () => {
     if (previewList.length === 0) return;
+    if (replaceMode && !confirm(`Xóa toàn bộ danh sách và điểm danh hiện có của lớp ${currentClassName} rồi nạp ${previewList.length} học sinh mới?`)) return;
 
     try {
       setLoading(true);
-      if (replaceMode) {
-        await api.students.clearAll();
-      }
-      const res = await api.students.importList(previewList);
+      const res = await api.students.importList(previewList, { replace: replaceMode });
       onImportSuccess(res);
       onClose();
     } catch (err) {
@@ -347,3 +346,4 @@ export default function ImportStudentsModal({ onClose, onImportSuccess, currentC
     </div>
   );
 }
+
