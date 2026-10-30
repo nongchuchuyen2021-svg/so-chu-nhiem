@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Users,
   Search,
@@ -80,6 +81,29 @@ export default function StudentsView({ user, selectedStudentId, onClearSelectedS
     setStudents((prev) => [...prev, created]);
   };
 
+  const handleExportExcel = () => {
+    try {
+      const data = filteredStudents.map((s, idx) => ({
+        STT: idx + 1,
+        'Họ và tên': s.full_name,
+        'Ngày sinh': s.dob || '',
+        'Giới tính': s.gender,
+        'Tổ': s.group_name || '',
+        'Chức vụ': s.role_in_class || 'Thành viên',
+        'Phụ huynh': s.parent_name || '',
+        'SĐT Phụ huynh': s.parent_phone || '',
+        'Địa chỉ': s.address || '',
+        'Ghi chú': s.is_flagged_risk ? `Cần quan tâm: ${s.risk_reason}` : '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Danh sách học sinh');
+      XLSX.writeFile(wb, `Danh_sach_lop_10A1_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (err) {
+      window.open(api.students.exportExcelUrl(), '_blank');
+    }
+  };
+
   // Lọc dữ liệu hiển thị
   const filteredStudents = students.filter((s) => {
     const matchSearch =
@@ -108,16 +132,14 @@ export default function StudentsView({ user, selectedStudentId, onClearSelectedS
           <div className="flex items-center gap-2">
             {isGVCN && (
               <>
-                <a
-                  href={api.students.exportExcelUrl()}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={handleExportExcel}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition"
                   title="Xuất file Excel danh sách lớp"
                 >
                   <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                   <span>Xuất Excel</span>
-                </a>
+                </button>
 
                 <button
                   onClick={() => setShowAddModal(true)}
