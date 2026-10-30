@@ -101,7 +101,7 @@ export default function StudentsView({ user, currentClass, selectedStudentId, on
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Danh sách học sinh');
-      XLSX.writeFile(wb, `Danh_sach_lop_10A1_${new Date().toISOString().split('T')[0]}.xlsx`);
+      XLSX.writeFile(wb, `Danh_sach_lop_${(currentClass?.name || 'lop').replace(/[^\w-]+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch (err) {
       window.open(api.students.exportExcelUrl(), '_blank');
     }
@@ -274,7 +274,7 @@ export default function StudentsView({ user, currentClass, selectedStudentId, on
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                         <span>{s.gender}</span>
                         <span>•</span>
-                        <span>{s.group_name || 'Lớp 10A1'}</span>
+                        <span>{s.group_name || `Lớp ${currentClass?.name || ''}`}</span>
                       </div>
                     </div>
                   </div>
@@ -408,7 +408,7 @@ export default function StudentsView({ user, currentClass, selectedStudentId, on
       {/* Modal Nạp Dữ Liệu Học Sinh (Excel hoặc Mẫu 40 HS) */}
       {showImportModal && (
         <ImportStudentsModal
-          currentClassName={currentClass?.name || '10A1'}
+          currentClassName={currentClass?.name || ''}
           onClose={() => setShowImportModal(false)}
           onImportSuccess={(updatedList) => {
             setStudents(updatedList);

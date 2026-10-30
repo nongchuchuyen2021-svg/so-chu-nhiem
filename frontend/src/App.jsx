@@ -209,7 +209,7 @@ export default function App() {
                 </h2>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
                   Hiện tại hệ thống đã hoàn thành trọn vẹn <strong>Giai đoạn 1 (a)</strong> cho Lớp{' '}
-                  <strong>{currentClass?.name || '10A1'}</strong>.
+                  <strong>{currentClass?.name || ''}</strong>.
                 </p>
               </div>
               <div className="pt-2">

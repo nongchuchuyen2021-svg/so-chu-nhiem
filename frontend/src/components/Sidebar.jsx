@@ -17,7 +17,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, mode }) {
   const menuItems = [
     { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard, badge: null },
     { id: 'attendance', label: 'Điểm danh 30s', icon: CheckSquare, badge: 'Ưu tiên' },
-    { id: 'students', label: 'Hồ sơ học sinh', icon: Users, badge: '40 HS' },
+    { id: 'students', label: 'Hồ sơ học sinh', icon: Users },
     { id: 'discipline', label: 'Nề nếp & Thi đua', icon: Award, phase: 'GĐ 2' },
     { id: 'academics', label: 'Theo dõi Học tập', icon: GraduationCap, phase: 'GĐ 2' },
     ...(isGVCN

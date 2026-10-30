@@ -68,7 +68,7 @@ export default function StudentDetailModal({ student, onClose, onUpdated, onDele
                 </span>
               </div>
               <p className="text-xs text-emerald-100">
-                {formData.role_in_class || 'Thành viên'} • {formData.group_name || 'Lớp 10A1'}
+                {formData.role_in_class || 'Thành viên'} • {formData.group_name || 'Chưa có tổ'}
               </p>
             </div>
           </div>
