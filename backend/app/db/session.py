@@ -34,3 +34,20 @@ def init_db():
     from .. import models  # noqa: F401  (đăng ký bảng)
 
     Base.metadata.create_all(engine)
+    _migrate()
+
+
+def _migrate():
+    """CSDL SQLite cũ chưa có cột classes.owner_id: thêm cột và gán lớp cũ cho GVCN đang phụ trách (hoặc 'gvcn')."""
+    from sqlalchemy import inspect, text
+
+    with engine.begin() as conn:
+        cols = {c["name"] for c in inspect(conn).get_columns("classes")}
+        if "owner_id" not in cols:
+            conn.execute(text("ALTER TABLE classes ADD COLUMN owner_id INTEGER"))
+        conn.execute(text(
+            "UPDATE classes SET owner_id = (SELECT id FROM users WHERE role = 'gvcn' "
+            "AND class_id = classes.id ORDER BY id LIMIT 1) WHERE owner_id IS NULL"))
+        conn.execute(text(
+            "UPDATE classes SET owner_id = (SELECT id FROM users WHERE username = 'gvcn') "
+            "WHERE owner_id IS NULL"))

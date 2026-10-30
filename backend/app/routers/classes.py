@@ -42,7 +42,8 @@ def _get_or_create_school_year(db: Session, name: str) -> SchoolYear:
 
 @router.get("")
 def list_classes(user: User = Depends(require_gvcn), db: Session = Depends(get_db)):
-    classes = db.scalars(select(Class).order_by(Class.grade, Class.name)).all()
+    classes = db.scalars(select(Class).where(Class.owner_id == user.id)
+                         .order_by(Class.grade, Class.name)).all()
     return [_out(c, user.class_id) for c in classes]
 
 
@@ -52,10 +53,11 @@ def create_class(data: ClassCreate, user: User = Depends(require_gvcn), db: Sess
     if not name:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Tên lớp không được để trống")
     sy = _get_or_create_school_year(db, data.school_year.strip())
-    dup = db.scalar(select(Class).where(Class.name == name, Class.school_year_id == sy.id))
+    dup = db.scalar(select(Class).where(Class.name == name, Class.school_year_id == sy.id,
+                                        Class.owner_id == user.id))
     if dup:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Lớp {name} năm học {sy.name} đã tồn tại")
-    cls = Class(name=name, grade=data.grade, school_year_id=sy.id)
+    cls = Class(name=name, grade=data.grade, school_year_id=sy.id, owner_id=user.id)
     db.add(cls)
     db.flush()
     for i in range(1, 5):
@@ -70,7 +72,7 @@ def create_class(data: ClassCreate, user: User = Depends(require_gvcn), db: Sess
 def rename_class(class_id: int, data: ClassUpdate, user: User = Depends(require_gvcn),
                  db: Session = Depends(get_db)):
     cls = db.get(Class, class_id)
-    if not cls:
+    if not cls or cls.owner_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy lớp")
     cls.name = data.name.strip()
     db.add(AuditLog(user_id=user.id, action="rename_class", entity="class", entity_id=cls.id))
@@ -82,7 +84,7 @@ def rename_class(class_id: int, data: ClassUpdate, user: User = Depends(require_
 def select_class(class_id: int, user: User = Depends(require_gvcn), db: Session = Depends(get_db)):
     """Đổi lớp đang làm việc: mọi API khác lọc theo user.class_id nên dữ liệu đổi theo."""
     cls = db.get(Class, class_id)
-    if not cls:
+    if not cls or cls.owner_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy lớp")
     user.class_id = cls.id
     db.add(AuditLog(user_id=user.id, action="select_class", entity="class", entity_id=cls.id))

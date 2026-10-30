@@ -1,5 +1,6 @@
 import React from 'react';
-import { BookOpen, Moon, Sun, LogOut, ShieldCheck, UserCheck, Users, ChevronDown, School } from 'lucide-react';
+import { BRAND_NAME } from '../brand';
+import { BookOpen, Moon, Sun, LogOut, ShieldCheck, UserCheck, Users, ChevronDown, School, Pencil, FileSpreadsheet } from 'lucide-react';
 
 export default function Navbar({
   user,
@@ -8,6 +9,8 @@ export default function Navbar({
   onLogout,
   currentClass,
   onOpenClassModal,
+  onEditName,
+  onImportStudents,
 }) {
   const getRoleBadge = (role) => {
     switch (role) {
@@ -49,14 +52,14 @@ export default function Navbar({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">
-                  so-chu-nhiem
+                  {BRAND_NAME}
                 </span>
                 <span className="hidden md:inline-block px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider rounded bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
                   TT 15/2026/TT-BGDĐT
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block">
-                Sổ Chủ Nhiệm Điện Tử THPT
+                Quản lý lớp chủ nhiệm THPT
               </p>
             </div>
           </div>
@@ -72,7 +75,7 @@ export default function Navbar({
               <School className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <div className="text-left">
                 <span className="font-black text-xs sm:text-sm text-emerald-900 dark:text-emerald-200 flex items-center gap-1">
-                  Lớp {currentClass?.name || '10A1'}
+                  Lớp {currentClass?.name || '—'}
                   <ChevronDown className="w-3.5 h-3.5 text-emerald-600 group-hover:translate-y-0.5 transition" />
                 </span>
               </div>
@@ -84,11 +87,32 @@ export default function Navbar({
 
           {/* Hành động bên phải */}
           <div className="flex items-center gap-3">
+            {onImportStudents && (
+              <button
+                onClick={onImportStudents}
+                title="Nạp danh sách học sinh từ file Excel"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800/80 transition"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span className="hidden md:inline">Nạp DS học sinh</span>
+              </button>
+            )}
             {/* Phân quyền người dùng */}
             <div className="hidden sm:flex flex-col items-end">
-              <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                {user?.full_name || 'Người dùng'}
-              </span>
+              {onEditName ? (
+                <button
+                  onClick={onEditName}
+                  title="Nhập / sửa tên giáo viên"
+                  className="flex items-center gap-1 text-xs font-semibold text-slate-900 dark:text-slate-100 hover:text-emerald-600 dark:hover:text-emerald-400 transition"
+                >
+                  {user?.full_name || 'Nhập tên giáo viên'}
+                  <Pencil className="w-3 h-3 opacity-60" />
+                </button>
+              ) : (
+                <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                  {user?.full_name || 'Người dùng'}
+                </span>
+              )}
               <div>{getRoleBadge(user?.role)}</div>
             </div>
 

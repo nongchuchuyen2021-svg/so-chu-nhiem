@@ -21,6 +21,9 @@ import AttendanceView from './components/AttendanceView';
 import StudentsView from './components/StudentsView';
 import LoginView from './components/LoginView';
 import ClassManageModal from './components/ClassManageModal';
+import ImportStudentsModal from './components/ImportStudentsModal';
+import TeacherNameModal from './components/TeacherNameModal';
+import { BRAND_NAME } from './brand';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -35,6 +38,9 @@ export default function App() {
   const [classes, setClasses] = useState([]);
   const [currentClass, setCurrentClass] = useState(null);
   const [showClassModal, setShowClassModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [dataVersion, setDataVersion] = useState(0); // tăng lên để các màn hình tải lại sau khi nạp danh sách
 
   // Đồng bộ class dark lên html element
   useEffect(() => {
@@ -119,7 +125,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-slate-100 space-y-3">
         <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-sm font-medium text-slate-400">Đang khởi động so-chu-nhiem...</p>
+        <p className="text-sm font-medium text-slate-400">Đang khởi động {BRAND_NAME}...</p>
       </div>
     );
   }
@@ -140,6 +146,8 @@ export default function App() {
         currentClass={currentClass}
         classes={classes}
         onOpenClassModal={user.role === 'gvcn' ? () => setShowClassModal(true) : undefined}
+        onEditName={user.role === 'gvcn' ? () => setShowNameModal(true) : undefined}
+        onImportStudents={user.role === 'gvcn' ? () => setShowImportModal(true) : undefined}
       />
 
       {mode === 'demo' && (
@@ -155,7 +163,7 @@ export default function App() {
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} mode={mode} />
 
         {/* Nội dung chính của màn hình. key=lớp: đổi lớp thì mọi màn hình tải lại dữ liệu từ đầu */}
-        <main key={currentClass?.id ?? 'none'} className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0">
+        <main key={`${currentClass?.id ?? 'none'}-${dataVersion}`} className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0">
           {activeTab === 'dashboard' && (
             <DashboardView
               currentClass={currentClass}
@@ -216,6 +224,22 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {showNameModal && (
+        <TeacherNameModal
+          currentName={user.full_name}
+          onSaved={(updated) => setUser((prev) => ({ ...prev, full_name: updated.full_name }))}
+          onClose={() => setShowNameModal(false)}
+        />
+      )}
+
+      {showImportModal && (
+        <ImportStudentsModal
+          currentClassName={currentClass?.name || ''}
+          onClose={() => setShowImportModal(false)}
+          onImportSuccess={() => setDataVersion((v) => v + 1)}
+        />
+      )}
 
       {/* Modal Chọn & Quản lý Lớp */}
       {showClassModal && (

@@ -27,6 +27,8 @@ class Class(Base):
     grade: Mapped[int] = mapped_column(Integer)
     school_year_id: Mapped[int] = mapped_column(ForeignKey("school_years.id"))
     school_year: Mapped[SchoolYear] = relationship()
+    # GVCN sở hữu lớp (mỗi giáo viên chỉ thấy lớp của mình). Lớp cũ chưa có chủ -> gán cho tài khoản 'gvcn'.
+    owner_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
 
 
 class User(Base):

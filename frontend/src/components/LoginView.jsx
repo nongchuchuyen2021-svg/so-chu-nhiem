@@ -9,20 +9,38 @@ import {
   Sparkles,
   ArrowRight,
   AlertCircle,
+  Mail,
 } from 'lucide-react';
 import { api } from '../api';
+import { BRAND_NAME, BRAND_TAGLINE } from '../brand';
 
 export default function LoginView({ onLoginSuccess, demo }) {
   const [username, setUsername] = useState('gvcn');
   const [password, setPassword] = useState('Demo@12345');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [tab, setTab] = useState('login'); // 'login' | 'register'
+  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [password2, setPassword2] = useState('');
+
+  const switchTab = (t) => {
+    setTab(t);
+    setError(null);
+    setPassword('');
+    setPassword2('');
+  };
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
     try {
       setLoading(true);
       setError(null);
+      if (tab === 'register') {
+        if (password !== password2) throw new Error('Mật khẩu nhập lại không khớp');
+        onLoginSuccess(await api.auth.register(email, password, fullName));
+        return;
+      }
       const user = await api.auth.login(username, password);
       onLoginSuccess(user);
     } catch (err) {
@@ -57,14 +75,14 @@ export default function LoginView({ onLoginSuccess, demo }) {
             <BookOpen className="w-8 h-8" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-            Sổ Chủ Nhiệm Điện Tử
+            {BRAND_NAME}
           </h1>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-800 text-xs font-semibold text-emerald-300">
             <Sparkles className="w-3.5 h-3.5" />
             Chuẩn Thông tư 15/2026/TT-BGDĐT & TT22
           </div>
           <p className="text-xs text-slate-400">
-            Nắm trọn tình hình lớp học THPT trong 1 phút mỗi ngày
+            {BRAND_TAGLINE} • nắm tình hình lớp trong 1 phút mỗi ngày
           </p>
         </div>
 
@@ -82,23 +100,74 @@ export default function LoginView({ onLoginSuccess, demo }) {
             </div>
           )}
 
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-900/80 border border-slate-700">
+            {[['login', 'Đăng nhập'], ['register', 'Đăng ký bằng Gmail']].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => switchTab(key)}
+                className={`py-2 rounded-lg text-xs font-bold transition ${
+                  tab === key ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
+            {tab === 'register' && (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Họ tên giáo viên</label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      required
+                      maxLength={100}
+                      placeholder="VD: Cô Nguyễn Mai Phương"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-white placeholder-slate-500 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Địa chỉ Gmail</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="email"
+                      required
+                      placeholder="ten.cua.ban@gmail.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-white placeholder-slate-500 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {tab === 'login' && (
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Tên đăng nhập
+                Tên đăng nhập hoặc Gmail
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   required
-                  placeholder="gvcn / canbo / ph01"
+                  placeholder="email@gmail.com hoặc gvcn / canbo / ph01"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-white placeholder-slate-500 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
                 />
               </div>
             </div>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
@@ -109,7 +178,8 @@ export default function LoginView({ onLoginSuccess, demo }) {
                 <input
                   type="password"
                   required
-                  placeholder="••••••••"
+                  placeholder={tab === 'register' ? 'Tối thiểu 8 ký tự' : '••••••••'}
+                  minLength={tab === 'register' ? 8 : undefined}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-white placeholder-slate-500 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
@@ -117,17 +187,38 @@ export default function LoginView({ onLoginSuccess, demo }) {
               </div>
             </div>
 
+            {tab === 'register' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Nhập lại mật khẩu</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={password2}
+                    onChange={(e) => setPassword2(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-sm text-white placeholder-slate-500 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1.5">
+                  Chưa xác minh hộp thư Gmail; hãy dùng đúng Gmail của bạn để khỏi quên tài khoản.
+                </p>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-900/30 transition transform active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              <span>{loading ? 'Đang xác thực...' : 'Đăng Nhập'}</span>
+              <span>{loading ? 'Đang xử lý...' : tab === 'register' ? 'Tạo tài khoản' : 'Đăng Nhập'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
 
           {/* Dùng thử nhanh 1-Chạm */}
+          {tab === 'login' && (
           <div className="pt-4 border-t border-slate-700/60 space-y-2.5">
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 text-center">
               Dùng thử nhanh (1-Chạm)
@@ -145,7 +236,7 @@ export default function LoginView({ onLoginSuccess, demo }) {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-white group-hover:text-emerald-400 transition">
-                      Giáo viên chủ nhiệm (10A1)
+                      Giáo viên chủ nhiệm (tài khoản mẫu)
                     </p>
                     <p className="text-[10px] text-slate-400">Toàn quyền xem hồ sơ, điểm danh, báo cáo</p>
                   </div>
@@ -177,6 +268,7 @@ export default function LoginView({ onLoginSuccess, demo }) {
               </button>
             </div>
           </div>
+          )}
         </div>
 
         {/* Chân trang */}

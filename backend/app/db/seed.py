@@ -172,6 +172,8 @@ def seed(reset=False):
             User(username="ph01", password_hash=pw, role="parent", full_name=first.parent_name, class_id=c1.id, student_id=first.id),
         ])
         db.flush()
+        c1.owner_id = db.scalar(select(User.id).where(User.username == "gvcn"))
+        c2.owner_id = db.scalar(select(User.id).where(User.username == "gvcn2"))
 
         # Tạo sẵn dữ liệu điểm danh 7 ngày qua để có biểu đồ đẹp ngay
         gv_user = db.scalar(select(User).where(User.username == "gvcn"))

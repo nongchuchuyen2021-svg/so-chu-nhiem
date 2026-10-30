@@ -71,6 +71,21 @@ const DEMO_ACCOUNTS = {
 };
 const DEMO_PASSWORD = 'Demo@12345';
 
+// Tài khoản đăng ký ở chế độ dùng thử: chỉ nằm trong trình duyệt này (mật khẩu băm SHA-256).
+const GMAIL_RE = /^[a-z0-9][a-z0-9._+-]*@gmail\.com$/;
+const sha256 = async (text) => {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+};
+const getLocalUsers = () => {
+  try {
+    return JSON.parse(localStorage.getItem('scn_users') || '{}');
+  } catch (e) {
+    return {};
+  }
+};
+const saveLocalUsers = (users) => localStorage.setItem('scn_users', JSON.stringify(users));
+
 const localClassesWithCurrent = () => {
   const list = getLocalClasses();
   const currentId = list.some((c) => c.id === getCurrentClassId()) ? getCurrentClassId() : list[0]?.id;
@@ -235,14 +250,51 @@ export const api = {
     login: (username, password) =>
       route(
         () => fetchJson('/auth/login', json('POST', { username, password })),
-        () => {
-          // Bản xem thử không có máy chủ: chỉ chấp nhận 3 tài khoản dùng thử công khai.
+        async () => {
+          // Bản xem thử không có máy chủ: 3 tài khoản dùng thử công khai + tài khoản đã đăng ký trên trình duyệt này.
           const u = username.trim().toLowerCase();
-          const acc = DEMO_ACCOUNTS[u];
-          if (!acc || password !== DEMO_PASSWORD) throw new Error('Sai tên đăng nhập hoặc mật khẩu');
+          let acc = DEMO_ACCOUNTS[u] && password === DEMO_PASSWORD ? DEMO_ACCOUNTS[u] : null;
+          const registered = getLocalUsers()[u];
+          if (!acc && registered && registered.hash === (await sha256(password))) {
+            acc = { role: 'gvcn', full_name: registered.full_name };
+          }
+          if (!acc) throw new Error('Sai tên đăng nhập hoặc mật khẩu');
           const user = { id: 1, username: u, ...acc, class: localCurrentClass() };
           localStorage.setItem('scn_cached_user', JSON.stringify(user));
           return user;
+        }
+      ),
+    register: (email, password, full_name) =>
+      route(
+        () => fetchJson('/auth/register', json('POST', { email, password, full_name })),
+        async () => {
+          const u = email.trim().toLowerCase();
+          const name = full_name.trim().replace(/\s+/g, ' ');
+          if (!GMAIL_RE.test(u)) throw new Error('Vui lòng nhập địa chỉ Gmail hợp lệ (…@gmail.com)');
+          if (!name) throw new Error('Vui lòng nhập họ tên giáo viên');
+          if (password.length < 8) throw new Error('Mật khẩu tối thiểu 8 ký tự');
+          const users = getLocalUsers();
+          if (users[u]) throw new Error('Gmail này đã được đăng ký, hãy đăng nhập');
+          users[u] = { full_name: name, hash: await sha256(password) };
+          saveLocalUsers(users);
+          const user = { id: 1, username: u, role: 'gvcn', full_name: name, class: localCurrentClass() };
+          localStorage.setItem('scn_cached_user', JSON.stringify(user));
+          return user;
+        }
+      ),
+    updateProfile: (full_name) =>
+      route(
+        () => fetchJson('/auth/profile', json('PUT', { full_name })),
+        () => {
+          const name = full_name.trim().replace(/\s+/g, ' ');
+          if (!name) throw new Error('Họ tên không được để trống');
+          const cached = JSON.parse(localStorage.getItem('scn_cached_user') || 'null');
+          if (!cached) throw new Error('Chưa đăng nhập');
+          const user = { ...cached, full_name: name };
+          localStorage.setItem('scn_cached_user', JSON.stringify(user));
+          const users = getLocalUsers();
+          if (users[user.username]) saveLocalUsers({ ...users, [user.username]: { ...users[user.username], full_name: name } });
+          return { ...user, class: localCurrentClass() };
         }
       ),
     logout: () =>
