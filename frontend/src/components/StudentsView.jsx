@@ -98,7 +98,9 @@ export default function StudentsView({ user, currentClass, selectedStudentId, on
         'Địa chỉ': s.address || '',
         'Ghi chú': s.is_flagged_risk ? `Cần quan tâm: ${s.risk_reason}` : '',
       }));
-      const ws = XLSX.utils.json_to_sheet(data);
+      const header = ['STT', 'Họ và tên', 'Ngày sinh', 'Giới tính', 'Tổ', 'Chức vụ', 'Phụ huynh', 'SĐT Phụ huynh', 'Địa chỉ', 'Ghi chú'];
+      const ws = XLSX.utils.json_to_sheet(data, { header }); // có header cả khi lớp chưa có học sinh
+      ws['!cols'] = [6, 26, 12, 10, 8, 20, 22, 16, 34, 30].map((wch) => ({ wch }));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Danh sách học sinh');
       XLSX.writeFile(wb, `Danh_sach_lop_${(currentClass?.name || 'lop').replace(/[^\w-]+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
