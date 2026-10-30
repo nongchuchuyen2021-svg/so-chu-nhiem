@@ -75,19 +75,65 @@ const schoolYearName = () => {
   return `${y}-${y + 1}`;
 };
 
-// Tải toàn bộ dữ liệu của giáo viên về localStorage; tài khoản mới được tạo sẵn 1 lớp TRỐNG
+const snapshotLocal = () =>
+  Object.fromEntries(
+    Object.keys(localStorage)
+      .filter(isDataKey)
+      .map((k) => [k, localStorage.getItem(k)])
+  );
+const parse = (text, fallback) => {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return fallback;
+  }
+};
+
+// Lớp có học sinh do giáo viên tự nạp trong chế độ dùng thử (bỏ qua lớp mẫu/rỗng)
+function migratable(snap) {
+  return parse(snap.scn_classes, [])
+    .map((cls) => ({ cls, students: parse(snap[`scn_students_class_${cls.id}`], []) }))
+    .filter(({ students }) => students.length && !(students.length === 1 && students[0].id === 40));
+}
+
+// Chuyển lớp dùng thử vào tài khoản (cấp id mới để không trùng 4 lớp mẫu có id 1-4)
+function migrate(snap, items) {
+  const base = Date.now();
+  const classes = items.map(({ cls, students }, i) => {
+    const id = base + i;
+    kvSet(`scn_students_class_${id}`, JSON.stringify(students.map((s) => ({ ...s, class_id: id }))));
+    Object.keys(snap).forEach((k) => {
+      const m = k.match(new RegExp(`^scn_att_${cls.id}_(.+)$`));
+      if (m) kvSet(`scn_att_${id}_${m[1]}`, snap[k]);
+    });
+    return { ...cls, id };
+  });
+  kvSet('scn_classes', JSON.stringify(classes));
+  kvSet('scn_current_class_id', String(classes[0].id));
+}
+
+// Tải toàn bộ dữ liệu của giáo viên về localStorage; tài khoản mới: chuyển dữ liệu dùng thử (nếu có và được đồng ý)
+// hoặc tạo sẵn 1 lớp TRỐNG
 async function hydrate(user) {
+  const local = snapshotLocal();
   clearDataKeys();
   const snap = await getDocs(collection(db, 'users', user.uid, 'kv'));
   snap.forEach((d) => {
     if (isDataKey(d.id)) localStorage.setItem(d.id, d.data().v);
   });
-  if (!localStorage.getItem('scn_classes')) {
-    const id = Date.now();
-    kvSet('scn_classes', JSON.stringify([{ id, name: '10A1', grade: 10, school_year: schoolYearName() }]));
-    kvSet('scn_current_class_id', String(id));
-    kvSet(`scn_students_class_${id}`, '[]');
+  if (localStorage.getItem('scn_classes')) return;
+
+  const items = migratable(local);
+  const total = items.reduce((n, i) => n + i.students.length, 0);
+  if (items.length && window.confirm(`Trình duyệt này có dữ liệu dùng thử (${items.length} lớp, ${total} học sinh).
+Chuyển vào tài khoản của bạn để lưu lâu dài?`)) {
+    migrate(local, items);
+    return;
   }
+  const id = Date.now();
+  kvSet('scn_classes', JSON.stringify([{ id, name: '10A1', grade: 10, school_year: schoolYearName() }]));
+  kvSet('scn_current_class_id', String(id));
+  kvSet(`scn_students_class_${id}`, '[]');
 }
 
 export const cloud = {
