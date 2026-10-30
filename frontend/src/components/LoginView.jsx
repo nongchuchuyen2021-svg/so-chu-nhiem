@@ -14,7 +14,7 @@ import {
 import { api } from '../api';
 import { BRAND_NAME, BRAND_TAGLINE } from '../brand';
 
-export default function LoginView({ onLoginSuccess, demo }) {
+export default function LoginView({ onLoginSuccess, demo, cloud }) {
   const [username, setUsername] = useState('gvcn');
   const [password, setPassword] = useState('Demo@12345');
   const [loading, setLoading] = useState(false);
@@ -46,6 +46,18 @@ export default function LoginView({ onLoginSuccess, demo }) {
     } catch (err) {
       console.error('Đăng nhập thất bại:', err);
       setError(err.message || 'Sai tên đăng nhập hoặc mật khẩu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const googleLogin = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      onLoginSuccess(await api.auth.google());
+    } catch (err) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -98,6 +110,26 @@ export default function LoginView({ onLoginSuccess, demo }) {
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
               <span>{error}</span>
             </div>
+          )}
+
+          {cloud && (
+            <>
+              <button
+                type="button"
+                onClick={googleLogin}
+                disabled={loading}
+                className="w-full py-3 rounded-xl bg-white hover:bg-slate-100 text-slate-800 font-bold text-sm shadow-lg transition disabled:opacity-50 flex items-center justify-center gap-2.5"
+              >
+                <svg viewBox="0 0 48 48" className="w-5 h-5" aria-hidden="true">
+                  <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z" />
+                  <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z" />
+                  <path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C1 16.4 0 20.1 0 24s1 7.6 2.6 10.8l7.9-6.1z" />
+                  <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.1 1.4-4.9 2.3-8.2 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z" />
+                </svg>
+                Đăng nhập / Đăng ký bằng Google
+              </button>
+              <p className="text-center text-[11px] text-slate-500">hoặc dùng Gmail và mật khẩu</p>
+            </>
           )}
 
           <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-900/80 border border-slate-700">
@@ -218,7 +250,7 @@ export default function LoginView({ onLoginSuccess, demo }) {
           </form>
 
           {/* Dùng thử nhanh 1-Chạm */}
-          {tab === 'login' && (
+          {tab === 'login' && !cloud && (
           <div className="pt-4 border-t border-slate-700/60 space-y-2.5">
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 text-center">
               Dùng thử nhanh (1-Chạm)

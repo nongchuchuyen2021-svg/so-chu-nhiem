@@ -82,11 +82,13 @@ export default function Sidebar({ activeTab, setActiveTab, user, mode }) {
         <div className="pt-4 mt-auto border-t border-slate-100 dark:border-slate-800">
           <div className="bg-emerald-50 dark:bg-emerald-950/40 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/50">
             <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-              {mode === 'demo' ? '🧪 Chế độ dùng thử' : '🔒 Dữ liệu trên máy chủ'}
+              {mode === 'demo' ? '🧪 Chế độ dùng thử' : mode === 'cloud' ? '☁️ Lưu trên đám mây' : '🔒 Dữ liệu trên máy chủ'}
             </p>
             <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80 mt-1">
               {mode === 'demo'
                 ? 'Dữ liệu chỉ lưu trong trình duyệt này, có thể mất khi xóa dữ liệu trình duyệt.'
+                : mode === 'cloud'
+                ? 'Dữ liệu gắn với tài khoản Google/Gmail của bạn, dùng được trên mọi thiết bị; nếu lưu lỗi hệ thống sẽ báo ngay.'
                 : 'Mọi thay đổi được lưu vào cơ sở dữ liệu; nếu lưu lỗi hệ thống sẽ báo ngay.'}
             </p>
           </div>

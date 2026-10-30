@@ -40,6 +40,7 @@ export default function App() {
   const [showClassModal, setShowClassModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
+  const [syncError, setSyncError] = useState('');
   const [dataVersion, setDataVersion] = useState(0); // tăng lên để các màn hình tải lại sau khi nạp danh sách
 
   // Đồng bộ class dark lên html element
@@ -59,6 +60,13 @@ export default function App() {
   useEffect(() => {
     api.mode().then(setMode);
     checkCurrentUser();
+  }, []);
+
+  // Firebase báo lỗi lưu lên đám mây (mất mạng, sai luật Firestore...) -> báo rõ, không im lặng
+  useEffect(() => {
+    const onSync = (e) => setSyncError(e.detail.ok ? '' : e.detail.message || 'Không lưu được lên đám mây');
+    window.addEventListener('scn:sync', onSync);
+    return () => window.removeEventListener('scn:sync', onSync);
   }, []);
 
   // Máy chủ báo hết phiên giữa chừng -> về màn hình đăng nhập (không lưu giả)
@@ -132,7 +140,7 @@ export default function App() {
 
   // Nếu chưa đăng nhập: hiện màn hình Login
   if (!user) {
-    return <LoginView demo={mode === 'demo'} onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
+    return <LoginView demo={mode === 'demo'} cloud={mode === 'cloud'} onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
   }
 
   return (
@@ -149,6 +157,12 @@ export default function App() {
         onEditName={user.role === 'gvcn' ? () => setShowNameModal(true) : undefined}
         onImportStudents={user.role === 'gvcn' ? () => setShowImportModal(true) : undefined}
       />
+
+      {syncError && (
+        <div className="bg-rose-100 dark:bg-rose-950 border-b border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 text-xs font-semibold px-4 py-2 text-center">
+          ⚠️ Chưa lưu được dữ liệu lên đám mây ({syncError}). Dữ liệu mới nhất có thể chưa được lưu, hãy kiểm tra mạng rồi thử lại.
+        </div>
+      )}
 
       {mode === 'demo' && (
         <div className="bg-amber-100 dark:bg-amber-950 border-b border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-semibold px-4 py-2 text-center">

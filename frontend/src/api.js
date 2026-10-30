@@ -9,15 +9,19 @@ import {
   seedSampleStudents,
   getLocalAttendance,
   saveLocalAttendance,
+  peekAttendance,
 } from './localData';
+import { cloudEnabled, cloud, cloudUser } from './cloud';
 
 const BASE_URL = '/api';
 
 // Hai chế độ, chọn MỘT lần khi tải trang và không bao giờ tự chuyển giữa chừng:
 //  - 'server': có máy chủ (FastAPI). Mọi lỗi được báo thẳng cho người dùng, KHÔNG lưu tạm vào trình duyệt.
+//  - 'cloud' : Firebase (Google/Gmail + Firestore). Dữ liệu từng giáo viên lưu trên đám mây, đồng bộ giữa các thiết bị.
 //  - 'demo'  : không có máy chủ (vd. bản xem thử trên Vercel). Dữ liệu chỉ nằm trong trình duyệt này.
 let modePromise = null;
 export function detectMode() {
+  if (cloudEnabled) return Promise.resolve('cloud');
   if (!modePromise) {
     modePromise = fetch(`${BASE_URL}/health`, { cache: 'no-store' })
       .then(async (r) => {
@@ -92,6 +96,52 @@ const localClassesWithCurrent = () => {
   return list.map((c) => ({ ...c, is_current: c.id === currentId }));
 };
 const localCurrentClass = () => localClassesWithCurrent().find((c) => c.is_current);
+const cloudMe = (fbUser) => cloudUser(fbUser, localCurrentClass());
+
+const dayStr = (offset) => {
+  const d = new Date();
+  d.setDate(d.getDate() - offset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const WEEKDAY = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+// Biểu đồ chuyên cần 7 ngày từ điểm danh đã lưu (ngày chưa điểm danh thì bỏ qua)
+function realChart(classId, total, today) {
+  const points = [];
+  for (let off = 6; off >= 1; off--) {
+    const recs = peekAttendance(dayStr(off), 'chieu', classId) || peekAttendance(dayStr(off), 'sang', classId);
+    if (!recs) continue;
+    const vang = recs.filter((r) => r.status === 'P' || r.status === 'K').length;
+    const muon = recs.filter((r) => r.status === 'M').length;
+    const base = recs.length || total;
+    points.push({
+      day: WEEKDAY[new Date(dayStr(off)).getDay()],
+      co_mat: Math.max(0, base - vang),
+      vang,
+      muon,
+      ty_le: base ? Math.round(((base - vang) / base) * 1000) / 10 : 100,
+    });
+  }
+  points.push({ day: 'Hôm nay', co_mat: today.present, vang: today.absentP + today.absentK, muon: today.late, ty_le: today.rate });
+  return points;
+}
+
+// Học sinh vắng từ 3 buổi trở lên trong `days` ngày (cùng quy tắc với máy chủ)
+function realAtRisk(classId, students, days) {
+  const stats = new Map(students.map((s) => [s.id, { student_id: s.id, name: s.full_name, p: 0, k: 0, m: 0, total_absent: 0 }]));
+  for (let off = 0; off <= days; off++) {
+    ['sang', 'chieu'].forEach((session) => {
+      (peekAttendance(dayStr(off), session, classId) || []).forEach((r) => {
+        const st = stats.get(r.student_id);
+        if (!st) return;
+        if (r.status === 'P') { st.p++; st.total_absent++; }
+        else if (r.status === 'K') { st.k++; st.total_absent++; }
+        else if (r.status === 'M') st.m++;
+      });
+    });
+  }
+  return [...stats.values()].filter((s) => s.total_absent >= 3).sort((a, b) => b.total_absent - a.total_absent);
+}
 
 const local = {
   dashboard() {
@@ -116,7 +166,7 @@ const local = {
         status_label: r.status === 'P' ? 'Có phép' : r.status === 'K' ? 'Không phép' : 'Đi muộn',
         reason: r.reason,
         minutes_late: r.minutes_late,
-        phone: '098700188',
+        phone: students.find((s) => s.id === r.student_id)?.parent_phone || '',
       }));
 
     const flaggedStudents = students
@@ -130,15 +180,18 @@ const local = {
         parent_phone: s.parent_phone,
       }));
 
-    const chartData = [
-      { day: 'T2', co_mat: Math.max(0, students.length - 1), vang: 1, muon: 0, ty_le: 97.5 },
-      { day: 'T3', co_mat: Math.max(0, students.length - 2), vang: 2, muon: 1, ty_le: 95.0 },
-      { day: 'T4', co_mat: students.length, vang: 0, muon: 0, ty_le: 100 },
-      { day: 'T5', co_mat: Math.max(0, students.length - 1), vang: 1, muon: 2, ty_le: 97.5 },
-      { day: 'T6', co_mat: Math.max(0, students.length - 2), vang: 2, muon: 0, ty_le: 95.0 },
-      { day: 'T7', co_mat: students.length, vang: 0, muon: 1, ty_le: 100 },
-      { day: 'Hôm nay', co_mat: present, vang: absentP + absentK, muon: late, ty_le: rate },
-    ];
+    const isSample = currentClass.id <= 4; // 4 lớp mẫu có số liệu giả; lớp của giáo viên chỉ dùng số liệu thật
+    const chartData = isSample
+      ? [
+          { day: 'T2', co_mat: Math.max(0, students.length - 1), vang: 1, muon: 0, ty_le: 97.5 },
+          { day: 'T3', co_mat: Math.max(0, students.length - 2), vang: 2, muon: 1, ty_le: 95.0 },
+          { day: 'T4', co_mat: students.length, vang: 0, muon: 0, ty_le: 100 },
+          { day: 'T5', co_mat: Math.max(0, students.length - 1), vang: 1, muon: 2, ty_le: 97.5 },
+          { day: 'T6', co_mat: Math.max(0, students.length - 2), vang: 2, muon: 0, ty_le: 95.0 },
+          { day: 'T7', co_mat: students.length, vang: 0, muon: 1, ty_le: 100 },
+          { day: 'Hôm nay', co_mat: present, vang: absentP + absentK, muon: late, ty_le: rate },
+        ]
+      : realChart(currentClass.id, students.length, { present, absentP, absentK, late, rate });
 
     return {
       class_name: currentClass.name,
@@ -155,7 +208,7 @@ const local = {
         absent_list: absentList,
       },
       flagged_students: flaggedStudents,
-      upcoming_events: [
+      upcoming_events: !isSample ? [] : [
         { id: 1, title: `Kiểm tra Giữa HK1 Lớp ${currentClass.name}`, date: '02/11/2026', note: 'Ôn tập trọng tâm chương 1 & 2' },
         { id: 2, title: `Họp Phụ huynh Lớp ${currentClass.name}`, date: '06/11/2026', note: 'Bầu Ban đại diện CMHS, phổ biến Thông tư 15' },
         { id: 3, title: 'Hạn nộp tiền Bảo hiểm Y tế học sinh', date: '10/11/2026', note: 'Báo cáo danh sách nộp về phòng Tài vụ' },
@@ -201,10 +254,14 @@ const local = {
   },
 
   attendanceSummary(days) {
-    const students = getLocalStudents(localCurrentClass().id);
-    const atRisk = students
-      .filter((s) => s.is_flagged_risk)
-      .map((s) => ({ student_id: s.id, name: s.full_name, total_absent: 3, p: 2, k: 1, m: 1 }));
+    const cls = localCurrentClass();
+    const students = getLocalStudents(cls.id);
+    const atRisk =
+      cls.id <= 4
+        ? students
+            .filter((s) => s.is_flagged_risk)
+            .map((s) => ({ student_id: s.id, name: s.full_name, total_absent: 3, p: 2, k: 1, m: 1 }))
+        : realAtRisk(cls.id, students, days);
     return { period_days: days, total_students: students.length, at_risk_count: atRisk.length, at_risk_students: atRisk };
   },
 };
@@ -248,7 +305,9 @@ export const api = {
 
   auth: {
     login: (username, password) =>
-      route(
+      cloudEnabled
+        ? cloud.login(username, password).then(cloudMe)
+        : route(
         () => fetchJson('/auth/login', json('POST', { username, password })),
         async () => {
           // Bản xem thử không có máy chủ: 3 tài khoản dùng thử công khai + tài khoản đã đăng ký trên trình duyệt này.
@@ -265,7 +324,16 @@ export const api = {
         }
       ),
     register: (email, password, full_name) =>
-      route(
+      cloudEnabled
+        ? (async () => {
+            const u = email.trim().toLowerCase();
+            const name = full_name.trim().replace(/\s+/g, ' ');
+            if (!GMAIL_RE.test(u)) throw new Error('Vui lòng nhập địa chỉ Gmail hợp lệ (…@gmail.com)');
+            if (!name) throw new Error('Vui lòng nhập họ tên giáo viên');
+            if (password.length < 8) throw new Error('Mật khẩu tối thiểu 8 ký tự');
+            return cloudMe(await cloud.register(u, password, name));
+          })()
+        : route(
         () => fetchJson('/auth/register', json('POST', { email, password, full_name })),
         async () => {
           const u = email.trim().toLowerCase();
@@ -282,8 +350,16 @@ export const api = {
           return user;
         }
       ),
+    google: () => cloud.google().then(cloudMe),
     updateProfile: (full_name) =>
-      route(
+      cloudEnabled
+        ? (async () => {
+            const name = full_name.trim().replace(/\s+/g, ' ');
+            if (!name) throw new Error('Họ tên không được để trống');
+            await cloud.saveName(name);
+            return { full_name: name };
+          })()
+        : route(
         () => fetchJson('/auth/profile', json('PUT', { full_name })),
         () => {
           const name = full_name.trim().replace(/\s+/g, ' ');
@@ -298,7 +374,9 @@ export const api = {
         }
       ),
     logout: () =>
-      route(
+      cloudEnabled
+        ? cloud.logout()
+        : route(
         async () => {
           try {
             await fetchJson('/auth/logout', { method: 'POST' });
@@ -307,7 +385,12 @@ export const api = {
         () => localStorage.removeItem('scn_cached_user')
       ),
     me: () =>
-      route(
+      cloudEnabled
+        ? cloud.restore().then((u) => {
+            if (!u) throw new Error('Chưa đăng nhập');
+            return cloudMe(u);
+          })
+        : route(
         () => fetchJson('/auth/me'),
         () => {
           const cached = localStorage.getItem('scn_cached_user');

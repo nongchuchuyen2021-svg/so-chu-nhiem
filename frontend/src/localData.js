@@ -1,4 +1,5 @@
 // Quản lý Dữ liệu Cục Bộ Đa Lớp (Multi-class) & Nạp dữ liệu học sinh
+import { kvSet } from './kv';
 
 export const DEFAULT_CLASSES = [
   { id: 1, name: "10A1", grade: 10, school_year: "2025-2026" },
@@ -56,12 +57,12 @@ export function getLocalClasses() {
   if (saved) {
     try { return JSON.parse(saved); } catch (e) {}
   }
-  localStorage.setItem('scn_classes', JSON.stringify(DEFAULT_CLASSES));
+  kvSet('scn_classes', JSON.stringify(DEFAULT_CLASSES));
   return DEFAULT_CLASSES;
 }
 
 export function saveLocalClasses(classes) {
-  localStorage.setItem('scn_classes', JSON.stringify(classes));
+  kvSet('scn_classes', JSON.stringify(classes));
 }
 
 // Lớp đang chọn
@@ -71,7 +72,7 @@ export function getCurrentClassId() {
 }
 
 export function setCurrentClassId(classId) {
-  localStorage.setItem('scn_current_class_id', String(classId));
+  kvSet('scn_current_class_id', String(classId));
 }
 
 // Lấy danh sách học sinh theo lớp
@@ -85,7 +86,7 @@ export function getLocalStudents(classId = null) {
 
   // Nếu là lớp 10A1 (class_id=1) và chưa có, nạp 40 em mẫu
   if (targetClassId === 1) {
-    localStorage.setItem(key, JSON.stringify(INITIAL_STUDENTS_10A1));
+    kvSet(key, JSON.stringify(INITIAL_STUDENTS_10A1));
     return INITIAL_STUDENTS_10A1;
   }
 
@@ -96,7 +97,7 @@ export function getLocalStudents(classId = null) {
 export function saveLocalStudents(list, classId = null) {
   const targetClassId = classId || getCurrentClassId();
   const key = `scn_students_class_${targetClassId}`;
-  localStorage.setItem(key, JSON.stringify(list));
+  kvSet(key, JSON.stringify(list));
 }
 
 // Nạp lại 40 học sinh mẫu cho lớp hiện tại
@@ -136,11 +137,11 @@ export function getLocalAttendance(dateStr, session, classId = null) {
     let reason = '';
     let minutes_late = 0;
 
-    if (s.full_name.includes('Cường')) {
+    if (targetClassId <= 4 && s.full_name.includes('Cường')) {
       status = 'M';
       reason = 'Hỏng xe giữa đường';
       minutes_late = 15;
-    } else if (s.full_name.includes('Phúc')) {
+    } else if (targetClassId <= 4 && s.full_name.includes('Phúc')) {
       status = 'P';
       reason = 'Bà ngoại ốm xin nghỉ';
     }
@@ -157,7 +158,6 @@ export function getLocalAttendance(dateStr, session, classId = null) {
     };
   });
 
-  localStorage.setItem(key, JSON.stringify(att));
   return att;
 }
 
@@ -178,6 +178,16 @@ export function saveLocalAttendance(dateStr, session, records, classId = null) {
     minutes_late: r.minutes_late || 0,
   }));
 
-  localStorage.setItem(key, JSON.stringify(fullRecords));
+  kvSet(key, JSON.stringify(fullRecords));
   return { ok: true, count: fullRecords.length };
+}
+
+// Đọc điểm danh ĐÃ lưu (không tự sinh bản mặc định); null nếu buổi đó chưa điểm danh
+export function peekAttendance(dateStr, session, classId = null) {
+  const key = `scn_att_${classId || getCurrentClassId()}_${dateStr}_${session}`;
+  try {
+    return JSON.parse(localStorage.getItem(key) || 'null');
+  } catch (e) {
+    return null;
+  }
 }
